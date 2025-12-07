@@ -11,9 +11,9 @@ from openai import OpenAI
 from tqdm import tqdm
 
 # ================= 配置区域 =================
-INPUT_FILE = 'dataset/raw.csv'
-OUTPUT_FILE = 'dataset/translated_result.csv' 
-LOG_FILE = 'dataset/translation_process.log'
+INPUT_FILE = 'dataset_test/raw_test.csv'
+OUTPUT_FILE = 'dataset_test/translated_result.csv' 
+LOG_FILE = 'dataset_test/translation_process.log'
 API_KEY_FILE = '.apikey'
 
 BATCH_SIZE = 25          # 批次大小
@@ -108,9 +108,9 @@ client = OpenAI(
 
 try:
     # 加载原始数据（保留原始顺序的关键）
-    df_raw = pd.read_csv(INPUT_FILE, encoding='UTF-8')
+    df_raw = pd.read_csv(INPUT_FILE, encoding='UTF-8', header=None, names=['src'])
     # 确保列名是字符串，防止只有数字的描述被当成 int
-    all_source_list = df_raw['物料描述'].astype(str).tolist()
+    all_source_list = df_raw['src'].astype(str).tolist()
     print(f"原始数据加载成功: {len(all_source_list)} 条")
 except Exception as e:
     print(f"读取原始文件失败: {e}")
@@ -123,12 +123,12 @@ completed_map = {}
 if os.path.exists(OUTPUT_FILE):
     print("检测到历史文件，正在分析进度...")
     try:
-        df_done = pd.read_csv(OUTPUT_FILE)
+        df_done = pd.read_csv(OUTPUT_FILE, header=None, names=['src', 'tgt'], encoding='UTF-8')
         # 倒序遍历：这样如果有重复的 key，前面的（旧的/失败的）会被后面的（新的/成功的）覆盖
         # 这确保了 completed_map 里存的一定是最新一次的状态
         for idx, row in df_done.iterrows():
-            src = str(row['物料描述'])
-            tgt = str(row['英文描述'])
+            src = str(row['src'])
+            tgt = str(row['tgt'])
             
             completed_map[src] = tgt
             
@@ -150,7 +150,8 @@ for idx, src in enumerate(all_source_list):
 print(f"--- 总任务数: {len(all_source_list)} | 待处理: {len(tasks_to_process)} ---")
 
 if not os.path.exists(OUTPUT_FILE):
-    pd.DataFrame(columns=['物料描述', '英文描述']).to_csv(OUTPUT_FILE, index=False, encoding='UTF-8')
+    pass
+    # pd.DataFrame(columns=['物料描述', '英文描述']).to_csv(OUTPUT_FILE, index=False, encoding='UTF-8')
 
 # --- 3. 批处理循环 ---
 with tqdm(total=len(tasks_to_process), unit="row", desc="Translating") as pbar:
@@ -219,8 +220,8 @@ with tqdm(total=len(tasks_to_process), unit="row", desc="Translating") as pbar:
         
         # 实时保存（Append模式，确保进度不丢失）
         try:
-            df_batch = pd.DataFrame({'物料描述': batch_source, '英文描述': batch_results})
-            df_batch.to_csv(OUTPUT_FILE, mode='a', header=False, index=False, encoding='UTF-8')
+            df_batch = pd.DataFrame({'src': batch_source, 'tgt': batch_results})
+            df_batch.to_csv(OUTPUT_FILE, mode='a', header=None, index=False, encoding='UTF-8')
             
             if success:
                 start_hist_idx = len(history_data)
@@ -240,37 +241,32 @@ print("\n" + "="*30)
 print("正在执行最终重组 (Re-ordering)...")
 try:
     # 1. 读取包含所有追加记录的进度文件
-    # 此时文件中可能包含：
-    # Row 5: 失败标记 (第一次跑)
-    # ...
-    # Row 1001: 成功翻译 (第二次跑，补在最后)
-    df_progress = pd.read_csv(OUTPUT_FILE)
+    df_progress = pd.read_csv(OUTPUT_FILE, header=None, names=['src', 'tgt'], encoding='UTF-8')
     
     # 2. 创建映射字典 (Dictionary)
-    # Python 字典的特性是：如果 key 重复，后面赋的值会覆盖前面的
-    # 所以：Success 的翻译会自动覆盖之前的 ERROR_MARK
-    progress_map = dict(zip(df_progress['物料描述'].astype(str), df_progress['英文描述'].astype(str)))
+    # 转换为字符串防止数字类型的 key 匹配失败
+    progress_map = dict(zip(df_progress['src'].astype(str), df_progress['tgt'].astype(str)))
     
     # 3. 准备最终有序的 DataFrame
-    # 复制原始 input 的结构，确保顺序一致
-    df_final = df_raw.copy()
+    df_final = df_raw.copy() # 此时只有 'src' 列
     
-    # 4. 映射翻译结果
-    # 使用 map 函数，根据'物料描述'列去 progress_map 里找对应的翻译
-    df_final['英文描述'] = df_final['物料描述'].astype(str).map(progress_map)
+    # 4. 映射翻译结果 [已修复]
+    # 逻辑：新建 'tgt' 列 = 根据 'src' 列的内容去 progress_map 查表
+    df_final['tgt'] = df_final['src'].astype(str).map(progress_map)
     
-    # 5. 填补可能的遗漏 (理论上不应发生，除非 map 失败)
-    df_final['英文描述'] = df_final['英文描述'].fillna(ERROR_MARK)
+    # 5. 填补可能的遗漏
+    df_final['tgt'] = df_final['tgt'].fillna(ERROR_MARK)
     
     # 6. 覆盖保存
-    # 此时保存的文件，顺序与 raw_test.csv 完全一致，且无重复行
-    df_final.to_csv(OUTPUT_FILE, index=False, encoding='UTF-8')
+    # 如果你希望最终文件包含表头，可以将 header=None 改为 header=['物料描述', '英文描述']
+    df_final.to_csv(OUTPUT_FILE, index=False, header=None, encoding='UTF-8')
     
     print(f"重组完成！文件已恢复原始顺序。")
     print(f"最终结果保存在: {OUTPUT_FILE}")
     
-    # 简单统计
-    fail_count = len(df_final[df_final['英文描述'] == ERROR_MARK])
+    # 简单统计 [已修复列名引用]
+    fail_count = len(df_final[df_final['tgt'] == ERROR_MARK])
+    
     if fail_count > 0:
         print(f"注意：仍有 {fail_count} 条数据翻译失败，标记为 {ERROR_MARK}")
         print("请再次运行脚本以重试这些行。")
@@ -279,7 +275,9 @@ try:
 
 except Exception as e:
     logger.error(f"Re-ordering Failed: {e}")
+    # 打印详细错误堆栈，方便调试
+    import traceback
+    traceback.print_exc()
     print(f"!!! 最终重组失败: {e}")
-    print(f"虽然重组失败，但所有翻译结果已保留在 {OUTPUT_FILE} 中 (可能顺序较乱)，数据未丢失。")
 
 print("="*30)
