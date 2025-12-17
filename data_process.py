@@ -11,9 +11,9 @@ from openai import OpenAI
 from tqdm import tqdm
 
 # ================= 配置区域 =================
-INPUT_FILE = 'dataset_test/raw_test.csv'
-OUTPUT_FILE = 'dataset_test/translated_result.csv' 
-LOG_FILE = 'dataset_test/translation_process.log'
+INPUT_FILE = 'dataset/raw.csv'
+OUTPUT_FILE = 'dataset/translated_result.csv' 
+LOG_FILE = 'dataset/translation_process.log'
 API_KEY_FILE = '.apikey'
 
 BATCH_SIZE = 25          # 批次大小
