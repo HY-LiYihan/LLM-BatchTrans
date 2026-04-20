@@ -1,2 +1,14 @@
-dataset
+.DS_Store
 .apikey
+.env
+.env.*
+!.env.example
+.vendor/
+.venv/
+__pycache__/
+.cache/
+dataset/
+outputs/
+*.pyc
+*.log
+.pytest_cache/

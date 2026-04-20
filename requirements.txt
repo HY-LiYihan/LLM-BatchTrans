@@ -1,0 +1,10 @@
+pandas
+openpyxl
+python-docx
+pdfplumber
+PyPDF2
+python-dotenv
+requests
+openai
+tqdm
+jieba
