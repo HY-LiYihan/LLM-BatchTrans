@@ -17,6 +17,7 @@ class Block:
     source_text: str
     source_word_count: int
     source_char_count: int
+    extraction_backend: str = "pdfplumber"
 
 
 @dataclass
@@ -30,12 +31,14 @@ class TranslationResult:
     elapsed_seconds: float = 0.0
     status: str = "pending"
     error_message: str = ""
+    cache_hit: bool = False
 
 
 @dataclass
 class ExtractionReport:
     blocks: list[Block]
     skipped_pages: list[int] = field(default_factory=list)
+    page_backends: dict[int, str] = field(default_factory=dict)
 
 
 @dataclass

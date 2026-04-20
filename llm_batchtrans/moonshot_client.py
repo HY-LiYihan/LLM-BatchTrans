@@ -46,7 +46,11 @@ class MoonshotTranslatorClient:
         self.rate_limiter = FixedIntervalRateLimiter(config.rpm_limit)
         self.thread_local = threading.local()
 
-    def translate_block(self, block: Block) -> TranslationResult:
+    def translate_block(
+        self,
+        block: Block,
+        preferred_terms: list[TranslationTerm] | None = None,
+    ) -> TranslationResult:
         started_at = time.time()
         last_error = ""
 
@@ -55,7 +59,7 @@ class MoonshotTranslatorClient:
                 self.rate_limiter.acquire()
                 response = self._session().post(
                     f"{self.config.base_url}/chat/completions",
-                    json=self._build_payload(block),
+                    json=self._build_payload(block, preferred_terms),
                     timeout=self.config.request_timeout,
                 )
 
@@ -128,10 +132,14 @@ class MoonshotTranslatorClient:
             self.thread_local.session = session
         return session
 
-    def _build_payload(self, block: Block) -> dict:
+    def _build_payload(
+        self,
+        block: Block,
+        preferred_terms: list[TranslationTerm] | None = None,
+    ) -> dict:
         return {
             "model": self.config.model,
-            "messages": build_translation_messages(block),
+            "messages": build_translation_messages(block, preferred_terms),
             "temperature": 0.2,
             "response_format": {"type": "json_object"},
         }

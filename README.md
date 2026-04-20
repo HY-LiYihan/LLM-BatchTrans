@@ -26,8 +26,12 @@
 适用于论文、教材章节、技术说明文档等 PDF 翻译作业：
 
 - 提取 PDF 文本
+- 解析器回退：`pdfplumber` 优先，必要时回退到 `PyPDF2`
 - 按页和块切分
 - 并发调用 Moonshot `kimi-k2-thinking-turbo`
+- 受控并发：线程池 + RPM 节流 + 重试退避
+- 翻译缓存：相同文本块二次运行时直接命中缓存
+- 术语记忆：把历史结果中的术语对重新注入后续翻译提示
 - 自动抽取术语
 - 导出老师需要的三个交付物
   - 中文译文 `docx`
@@ -78,6 +82,7 @@ LLM-BatchTrans/
 │   ├── prompting.py
 │   ├── review.py
 │   ├── text_utils.py
+│   ├── translation_memory.py
 │   └── translation_service.py
 ├── docs/
 │   └── ARCHITECTURE.md
@@ -124,6 +129,8 @@ REQUEST_TIMEOUT=180
 CHUNK_SIZE_CHARS=1800
 RPM_LIMIT=4800
 RETRY_BASE_DELAY=2.0
+GLOSSARY_HINT_LIMIT=8
+CACHE_ROOT=.cache/translation_memory
 ```
 
 ## Usage
@@ -184,9 +191,28 @@ PYTHONPATH=.vendor python3 pdf_assignment_pipeline.py \
 
 - `MAX_WORKERS` 控制并发线程数
 - `RPM_LIMIT` 控制请求发射速度
+- `CACHE_ROOT` 保存可复用的翻译缓存
+- `GLOSSARY_HINT_LIMIT` 控制每块注入多少条历史术语提示
 - 请求层自带退避重试
 
 这样既能尽量吃满平台额度，又能减少首轮爆发式请求带来的 `429`。
+
+## External Design References
+
+这次 PDF 链路继续优化时，主要参考了几类成熟项目的思路：
+
+- [DocuTranslate](https://github.com/xunbu/docutranslate)
+  - 多文档格式工作流、术语表和结构化导出
+- [Aphra](https://github.com/DavidLMS/aphra)
+  - 分阶段翻译流程和面向质量的工作流设计
+- [OmegaT](https://omegat.org/)
+  - 翻译记忆、术语表、匹配传播这类 CAT 工具思路
+- [Weblate Manual](https://docs.weblate.org/)
+  - 术语建议、自动化翻译与项目化工作流
+- [Bitextor](https://github.com/bitextor/bitextor)
+  - 配置驱动的流水线和中间产物保留
+
+当前代码不是对这些项目的照搬，而是把其中最适合你这个“单 PDF 作业交付”场景的做法做了裁剪和落地。
 
 ## Legacy Scripts
 

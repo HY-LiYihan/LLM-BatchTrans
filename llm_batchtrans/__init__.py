@@ -12,5 +12,6 @@ __all__ = [
     "prompting",
     "review",
     "text_utils",
+    "translation_memory",
     "translation_service",
 ]

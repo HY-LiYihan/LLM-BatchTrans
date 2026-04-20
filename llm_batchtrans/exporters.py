@@ -95,6 +95,7 @@ class ArtifactExporter:
                 "Source Text": block.source_text,
                 "Word Count": block.source_word_count,
                 "Character Count": block.source_char_count,
+                "Extraction Backend": block.extraction_backend,
                 "Skipped Pages": ", ".join(str(page) for page in report.skipped_pages),
             }
             for block in report.blocks
@@ -109,6 +110,7 @@ class ArtifactExporter:
                 "Source Text": item.source_text,
                 "Chinese Translation": item.translation,
                 "Status": item.status,
+                "Cache Hit": item.cache_hit,
                 "Attempts": item.attempts,
                 "Elapsed Seconds": round(item.elapsed_seconds, 2),
                 "Error Message": item.error_message,

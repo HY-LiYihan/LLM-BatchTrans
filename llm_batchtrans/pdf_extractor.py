@@ -4,6 +4,7 @@ import logging
 from pathlib import Path
 
 import pdfplumber
+from PyPDF2 import PdfReader
 
 from .models import Block, ExtractionReport
 from .text_utils import chunk_text, clean_page_text
@@ -17,16 +18,25 @@ class PDFBlockExtractor:
     def extract(self, pdf_path: Path) -> ExtractionReport:
         blocks: list[Block] = []
         skipped_pages: list[int] = []
+        page_backends: dict[int, str] = {}
+        pypdf_reader = PdfReader(str(pdf_path))
 
         with pdfplumber.open(str(pdf_path)) as pdf:
             self.logger.info("PDF loaded: %s, pages=%s", pdf_path.name, len(pdf.pages))
             for page_index, page in enumerate(pdf.pages, start=1):
                 raw_text = page.extract_text() or ""
                 cleaned_text = clean_page_text(raw_text)
+                backend_name = "pdfplumber"
+                if not cleaned_text:
+                    fallback_text = pypdf_reader.pages[page_index - 1].extract_text() or ""
+                    cleaned_text = clean_page_text(fallback_text)
+                    if cleaned_text:
+                        backend_name = "PyPDF2"
                 if not cleaned_text:
                     skipped_pages.append(page_index)
                     self.logger.warning("Page %s extracted no usable text", page_index)
                     continue
+                page_backends[page_index] = backend_name
 
                 page_units: list[str] = []
                 for part in cleaned_text.split("\n\n"):
@@ -43,8 +53,13 @@ class PDFBlockExtractor:
                             source_text=normalized,
                             source_word_count=len(normalized.split()),
                             source_char_count=len(normalized),
+                            extraction_backend=backend_name,
                         )
                     )
 
         self.logger.info("Extracted %s text blocks from PDF", len(blocks))
-        return ExtractionReport(blocks=blocks, skipped_pages=skipped_pages)
+        return ExtractionReport(
+            blocks=blocks,
+            skipped_pages=skipped_pages,
+            page_backends=page_backends,
+        )

@@ -6,6 +6,7 @@
 .vendor/
 .venv/
 __pycache__/
+.cache/
 dataset/
 outputs/
 *.pyc

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import hashlib
 from pathlib import Path
 
 from .config import PipelineConfig
@@ -8,6 +9,7 @@ from .exporters import ArtifactExporter
 from .models import PipelineRunResult
 from .moonshot_client import MoonshotTranslatorClient
 from .pdf_extractor import PDFBlockExtractor
+from .translation_memory import TranslationMemory
 from .translation_service import TranslationOrchestrator
 
 
@@ -39,7 +41,12 @@ class AssignmentPipeline:
             extraction_report.blocks = blocks
             self.logger.info("Fast test mode enabled: limit_blocks=%s", limit_blocks)
 
-        translations = self.translation_service.translate(blocks)
+        translation_memory = TranslationMemory(
+            cache_path=self._cache_path(pdf_path),
+            logger=self.logger,
+            glossary_hint_limit=self.config.glossary_hint_limit,
+        )
+        translations = self.translation_service.translate(blocks, translation_memory)
         artifacts = self.exporter.export(
             extraction_report=extraction_report,
             translations=translations,
@@ -54,3 +61,7 @@ class AssignmentPipeline:
             translations=translations,
             artifacts=artifacts,
         )
+
+    def _cache_path(self, pdf_path: Path) -> Path:
+        fingerprint = hashlib.sha1(str(pdf_path.resolve()).encode("utf-8")).hexdigest()[:10]
+        return self.config.cache_root / f"{pdf_path.stem}_{fingerprint}.jsonl"

@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 class PipelineConfig:
     project_root: Path
     output_root: Path
+    cache_root: Path
     api_key: str
     base_url: str
     model: str
@@ -20,6 +21,7 @@ class PipelineConfig:
     chunk_size_chars: int
     rpm_limit: int
     retry_base_delay: float
+    glossary_hint_limit: int
 
     @classmethod
     def from_env(cls, project_root: Path) -> "PipelineConfig":
@@ -31,6 +33,7 @@ class PipelineConfig:
         return cls(
             project_root=project_root,
             output_root=Path(os.getenv("OUTPUT_ROOT", project_root / "outputs")).resolve(),
+            cache_root=Path(os.getenv("CACHE_ROOT", project_root / ".cache" / "translation_memory")).resolve(),
             api_key=api_key,
             base_url=os.getenv("MOONSHOT_BASE_URL", "https://api.moonshot.cn/v1").rstrip("/"),
             model=os.getenv("MOONSHOT_MODEL", "kimi-k2-thinking-turbo").strip(),
@@ -40,6 +43,7 @@ class PipelineConfig:
             chunk_size_chars=int(os.getenv("CHUNK_SIZE_CHARS", "1800")),
             rpm_limit=int(os.getenv("RPM_LIMIT", "4800")),
             retry_base_delay=float(os.getenv("RETRY_BASE_DELAY", "2.0")),
+            glossary_hint_limit=int(os.getenv("GLOSSARY_HINT_LIMIT", "8")),
         )
 
     def with_overrides(
@@ -65,5 +69,6 @@ class PipelineConfig:
         payload = asdict(self)
         payload["project_root"] = str(self.project_root)
         payload["output_root"] = str(self.output_root)
+        payload["cache_root"] = str(self.cache_root)
         payload["api_key"] = "***masked***"
         return payload
